@@ -1,0 +1,15 @@
+Rules
+
+FSM for enemy avoidance
+1. No enemy detected
+2. Enemy detected
+3. goomba/turtle
+4. Goomba below
+5. Goomba above
+6. Flying bitch
+
+Notes:
+Mario is always at square 9
+Pipes are 14
+Blocks are 10
+question marks are 13

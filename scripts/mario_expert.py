@@ -30,7 +30,7 @@ class MarioController(MarioEnvironment):
     def __init__(
         self,
         act_freq: int = 10,
-        emulation_speed: int = 0,
+        emulation_speed: int = 1,
         headless: bool = False,
     ) -> None:
         super().__init__(
@@ -101,14 +101,74 @@ class MarioExpert:
 
         self.video = None
 
-    def choose_action(self):
+    def choose_action(self, action = 2):
         state = self.environment.game_state()
         frame = self.environment.grab_frame()
         game_area = self.environment.game_area()
+        mario_row = -1
+        mario_col = -1
+        question_blocks = []
+        goombas = []
+        obstacles = []
 
         # Implement your code here to choose the best action
         # time.sleep(0.1)
-        return random.randint(0, len(self.environment.valid_actions) - 1)
+        print(game_area)
+
+        for rows, row in enumerate(game_area):
+            for cols, col in enumerate(row):
+                if col == 1 and mario_row == -1:
+                    mario_row = rows + 1    #add +1 because mario is a fatass
+                    mario_col = cols + 1
+                    print(f"Mario at Row: {mario_row}, Col: {mario_col}")
+                # if col == 13:
+                #     question_blocks.append(cols)
+                # Track goombas
+                if col == 10 or 14:
+                    obstacles.append((rows,cols))
+
+                if col == 15:
+                    goombas.append((rows,cols))
+
+        
+        # for cols, col in enumerate(question_blocks):
+        #     if(col == mario_col + 1):
+        #         return 4
+
+        #obstacle actions
+        for obstacle in obstacles:
+            obstacle_row, obstacle_col = obstacle
+
+            #jump over obstacle
+            if obstacle_col == mario_col + 1 and (obstacle_row == mario_row - 2 or obstacle_row == mario_row - 1):
+                action = 4
+                print("jumping")
+                break
+
+        #goomba action, takes higher prio than obstacles
+        for goomba in goombas:
+            goomba_row, goomba_col = goomba
+
+            #check if goomba is in front of mario between a range
+            if goomba_col < mario_col + 5 and goomba_col > mario_col:
+                #check if goomba is above do nothing until goomba falls down
+                if goomba_row > mario_row:
+                    action = -1
+
+                #check if goomba is below
+                if goomba_row < mario_row:
+                    #idk bruh this ones hard
+                    action = 2
+
+                #check if goomba is same row
+                if goomba_row == mario_row:
+                    action = 4
+            
+        return action
+
+        # Implement your code here to choose the best action
+        # time.sleep(0.1)
+        # return random.randint(0, len(self.environment.valid_actions) - 1)
 
     def step(self):
         """
