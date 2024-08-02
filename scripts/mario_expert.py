@@ -11,6 +11,7 @@ import logging
 import random
 
 import cv2
+import numpy as np
 from mario_environment import MarioEnvironment
 from pyboy.utils import WindowEvent
 
@@ -80,6 +81,9 @@ class MarioController(MarioEnvironment):
 
         self.pyboy.send_input(self.release_button[action])
 
+        # for _ in range(5):
+        #     self.pyboy.tick()
+
 
 class MarioExpert:
     """
@@ -108,45 +112,54 @@ class MarioExpert:
         mario_row = -1
         mario_col = -1
         question_blocks = []
-        goombas = []
         obstacles = []
 
         # Implement your code here to choose the best action
         # time.sleep(0.1)
         print(game_area)
 
-        for rows, row in enumerate(game_area):
-            for cols, col in enumerate(row):
-                if col == 1 and mario_row == -1:
-                    mario_row = rows + 1    #add +1 because mario is a fatass
-                    mario_col = cols + 1
-                    print(f"Mario at Row: {mario_row}, Col: {mario_col}")
-                # if col == 13:
-                #     question_blocks.append(cols)
-                # Track goombas
-                if col == 10 or 14:
-                    obstacles.append((rows,cols))
+        #convert game area to numpy array 
+        game_area_np = np.array(game_area)
 
-                if col == 15:
-                    goombas.append((rows,cols))
+        #find mario's position
+        mario_positions = np.where(game_area_np == 1)
+        if mario_positions[0].size > 0 and mario_row == -1:
+            mario_row = mario_positions[0][0] + 1
+            mario_col = mario_positions[1][0] + 1
+            print(f"Mario at Row: {mario_row}, Col: {mario_col}")
 
-        
-        # for cols, col in enumerate(question_blocks):
-        #     if(col == mario_col + 1):
-        #         return 4
+        # Track obstacles (10 or 14)
+        obstacle_positions_10 = np.where(game_area_np == 10)
+        obstacle_positions_14 = np.where(game_area_np == 14)
+        # Combine the positions into a single array
+        obstacles_np = np.column_stack((
+            np.concatenate((obstacle_positions_10[0], obstacle_positions_14[0])),
+            np.concatenate((obstacle_positions_10[1], obstacle_positions_14[1]))
+        ))
+
+        # Track goombas (15)
+        goomba_positions = np.where(game_area_np == 15)
+        goombas_np = goombas_np = np.column_stack((goomba_positions[0], goomba_positions[1]))
 
         #obstacle actions
-        for obstacle in obstacles:
-            obstacle_row, obstacle_col = obstacle
+        # for obstacle in obstacles:
+        #     obstacle_row, obstacle_col = obstacle
 
-            #jump over obstacle
-            if obstacle_col == mario_col + 1 and (obstacle_row == mario_row - 2 or obstacle_row == mario_row - 1):
-                action = 4
-                print("jumping")
-                break
+        #     #jump over obstacle
+        #     if obstacle_col == mario_col + 1 and (obstacle_row == mario_row - 2 or obstacle_row == mario_row - 1):
+        #         action = 4
+        #         break
+
+        jump_needed = np.any(
+            (obstacles_np[:, 1] == mario_col + 1) & 
+            ((obstacles_np[:, 0] == mario_row - 1) | (obstacles_np[:, 0] == mario_row - 2))
+        )
+
+        if jump_needed:
+            action = 4
 
         #goomba action, takes higher prio than obstacles
-        for goomba in goombas:
+        for goomba in goombas_np:
             goomba_row, goomba_col = goomba
 
             #check if goomba is in front of mario between a range

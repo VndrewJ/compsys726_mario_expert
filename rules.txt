@@ -10,6 +10,17 @@ FSM for enemy avoidance
 
 Notes:
 Mario is always at square 9
-Pipes are 14
-Blocks are 10
-question marks are 13
+
+##Block ID's
+0: Air
+1: Mario
+5: Coin
+6: Mushroom 
+10: Ground
+11: Moving platform
+12: Brick
+13: Question Mark Block
+14: Pipe
+15: Goomba
+16: Koopa
+18: Jumping bug
