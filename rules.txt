@@ -24,3 +24,11 @@ Mario is always at square 9
 15: Goomba
 16: Koopa
 18: Jumping bug
+
+##Action ID's
+0: PRESS_ARROW_DOWN
+1: PRESS_ARROW_LEFT
+2: PRESS_ARROW_RIGHT
+3: PRESS_ARROW_UP
+4: PRESS_BUTTON_A
+5: PRESS_BUTTON_B
