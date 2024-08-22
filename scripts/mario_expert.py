@@ -30,17 +30,13 @@ class MarioController(MarioEnvironment):
 
     def __init__(
         self,
-        act_freq: int = 15,
         emulation_speed: int = 1,
         headless: bool = False,
     ) -> None:
         super().__init__(
-            act_freq=act_freq,
             emulation_speed=emulation_speed,
             headless=headless,
         )
-
-        self.act_freq = act_freq
 
         # Example of valid actions based purely on the buttons you can press
         valid_actions: list[WindowEvent] = [
@@ -72,17 +68,28 @@ class MarioController(MarioEnvironment):
 
         You can change the action type to whatever you want or need just remember the base control of the game is pushing buttons
         """
+        if action == 6:
+            self.pyboy.send_input(self.valid_actions[2])
+            self.pyboy.send_input(self.valid_actions[4])
 
-        # Simply toggles the buttons being on or off for a duration of act_freq
-        self.pyboy.send_input(self.valid_actions[action])
+            for _ in range(hold_freq):
+                self.pyboy.tick()
 
-        for _ in range(hold_freq):
-            self.pyboy.tick()
+            self.pyboy.send_input(self.release_button[2])
+            self.pyboy.send_input(self.release_button[4])
+
+        # Simply toggles the buttons being on or off for a duration of hold_freq
+        else:
+            self.pyboy.send_input(self.valid_actions[action])
+
+            for _ in range(hold_freq):
+                self.pyboy.tick()
 
         # self.pyboy.tick()
 
+            self.pyboy.send_input(self.release_button[action])
         # Tick one more time for some reason or otherwise jumping doesnt work
-        # self.pyboy.tick()
+        self.pyboy.tick()
 
     def release_action(self, action: int) -> None:
         self.pyboy.send_input(self.release_button[action])
@@ -105,13 +112,10 @@ class MarioExpert:
                    "ENEMIES", 
                    "GOOMBA ABOVE", 
                    "GOOMBA BELOW",
-                   "GAP"
+                   "GAP",
+                   "JUMPING BUG",
+                   "UNDER + GOOMBA"
                    ]
-
-    action_state = ["Jump",
-                    "Pause",
-                    "Forward"
-                    ]
     
     previous_action = None
 
@@ -126,10 +130,7 @@ class MarioExpert:
         self.mario_col = -1
         self.obstacles_np = None
         self.goombas_np = None
-
-        # Action flags
-        jump_flag = False
-        pause_flag = False
+        self.jumping_bug_np = None
 
     def scan_frame(self):
         """
@@ -163,7 +164,6 @@ class MarioExpert:
         # Update gaps (0) that are below and in front of Mario
         gap_positions = np.where(game_area_np == 0)
         self.gaps_np = np.column_stack((gap_positions[0], gap_positions[1]))
-
         # Filter gaps to only include those below or in front of Mario
         self.gaps_np = self.gaps_np[(self.gaps_np[:, 0] > self.mario_row) & 
                                     (self.gaps_np[:, 1] > self.mario_col)]
@@ -171,34 +171,52 @@ class MarioExpert:
         # Update goombas (15) and koopas (16)
         goomba_positions = np.where(game_area_np == 15)
         koopa_positions = np.where(game_area_np == 16)
-        
         # Combine Goomba and Koopa positions
         combined_positions = np.column_stack((
             np.concatenate((goomba_positions[0], koopa_positions[0])),
             np.concatenate((goomba_positions[1], koopa_positions[1]))
         ))
-
         # Save combined positions as goombas_np
         self.goombas_np = combined_positions
 
+        # Update jumping bug (18) array
+        jumping_bug_positions = np.where(game_area_np == 18)
+        self.jumping_bug_np = np.column_stack(jumping_bug_positions)
+
 
     def fsm_transition(self):
+        # Edge case
+        print(self.environment.get_x_position())
+        if self.environment.get_x_position() > 1670 and self.environment.get_x_position() < 1680:
+            return "UNDER + GOOMBA"
+
         # Check for obstacles in front of Mario
         if np.any((self.obstacles_np[:, 0] == self.mario_row) & 
-                  (self.obstacles_np[:, 1] - self.mario_col == 1)):
+                (self.obstacles_np[:, 1] == self.mario_col + 1)) or \
+        np.any((self.obstacles_np[:, 0] == self.mario_row - 2) & 
+                (self.obstacles_np[:, 1] == self.mario_col + 1)):
             return "OBSTACLE"
+
         
-        # Check if Mario is currently on top of a block (either 10 or 14)
-        block_below_mario = self.environment.game_area()[self.mario_row + 1][self.mario_col]
-        if block_below_mario in [10, 14]:
-            # Check for a gap directly below and 1 block in front of Mario using gaps_np
-            gap_below_and_front = (self.gaps_np[:, 0] == self.mario_row + 1) & \
-                                (self.gaps_np[:, 1] == self.mario_col + 1)
-            if np.any(gap_below_and_front):
-                return "GAP"
+        
+        # Only check if mario is within the game board (aka not dead)
+        if self.mario_row < 16:
+            # Check if Mario is currently on top of a block (either 10 or 14)
+            block_below_mario = self.environment.game_area()[self.mario_row + 1][self.mario_col]
+            if block_below_mario in [10, 14]:
+                # Check for a gap directly below and 1 block in front of Mario using gaps_np
+                gap_below_and_front = (self.gaps_np[:, 0] == self.mario_row + 1) & \
+                                    (self.gaps_np[:, 1] == self.mario_col + 1)
+                if np.any(gap_below_and_front):
+                    return "GAP"
+                
+        # Check if the jumping bug is there
+        if len(self.jumping_bug_np) != 0 and any(self.jumping_bug_np[:, 1] > self.mario_col):
+            return "JUMPING BUG"
         
         # Switch to enemies state
         if self.current_state == "DEFAULT":
+            
             if len(self.goombas_np) != 0:
                 return "ENEMIES"
             
@@ -224,18 +242,30 @@ class MarioExpert:
         self.current_state = self.fsm_transition()
         print(self.current_state)
 
+        # Default hold freq
+        hold_freq = 10
+
         # Evaluates what action to do
+        # Default jumping actions
+        if self.current_state == "UNDER + GOOMBA":
+            action = 6
+            hold_freq = 100
+
         if self.current_state == "OBSTACLE":
+            hold_freq = 15
             action = 4
         
         if self.current_state == "GAP":
-            action = 4
+            hold_freq = 10
+            action = 6
 
         if self.current_state == "ENEMIES":
             for goomba_row, goomba_col in self.goombas_np:
-                if goomba_col - self.mario_col < 4 and goomba_col >= self.mario_col:
-                    action = 4  # Jump action
+                if goomba_col - self.mario_col < 3 and goomba_col >= self.mario_col:
+                    hold_freq = 15 # for some reason need this or "GAP" doesnt work
+                    action = 4  
 
+        # If a goomba is above mario
         elif self.current_state == "GOOMBA ABOVE":
         # Move forward until 4 blocks from a wall if Goomba is above
             wall_in_front = False
@@ -252,22 +282,35 @@ class MarioExpert:
             else:
                 # print("Moving forward to avoid Goomba above")
                 action = 2  # Move forward action
+                hold_freq = 1
         
+        # If a goomba is below
         elif self.current_state == "GOOMBA BELOW":
             for goomba_row, goomba_col in self.goombas_np:
+                hold_freq = 1
                 #if goomba is on the right
                 if goomba_col > self.mario_col:
                     print("moving right")
                     action = 2
-                elif goomba_col -1 < self.mario_col:
+                # If the goomba is to the left of mario, move left so mario lands on it unless the goomba is too far
+                elif goomba_col -1 < self.mario_col and self.mario_col - goomba_col < 2 :
                     print("moving left")
                     action = 1
                 else:
                     print("stomping")
                     action = -1
 
+        # Jumping bug stuff
+        elif self.current_state == "JUMPING BUG":
+            for bug_row, bug_col in self.jumping_bug_np:
+                if bug_col - self.mario_col < 3 and bug_col >= self.mario_col:
+                    hold_freq = 15 # for some reason need this or "GAP" doesnt work
+                    action = 4  
+                
+
         print(action)
-        return action
+        # action = -1 #uncomment for manual mode
+        return action, hold_freq
 
 
     def step(self):
@@ -278,16 +321,7 @@ class MarioExpert:
         """
 
         # Choose an action - button press or other...
-        action = self.choose_action()
-
-        # if its a jump, hold it longer
-        if action == 4:
-            hold_freq = 15
-        else:
-            hold_freq = 1
-
-        if action != self.previous_action:
-            self.environment.release_action(action)
+        action, hold_freq = self.choose_action()
 
         # Run the action on the environment
         self.environment.run_action(action, hold_freq)

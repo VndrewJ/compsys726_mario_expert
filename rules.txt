@@ -32,3 +32,4 @@ Mario is always at square 9
 3: PRESS_ARROW_UP
 4: PRESS_BUTTON_A
 5: PRESS_BUTTON_B
+6: RUN AND JUMP
