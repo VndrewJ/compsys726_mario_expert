@@ -191,13 +191,15 @@ class MarioExpert:
             return "UNDER + GOOMBA"
 
         # Check for obstacles in front of Mario
-        if np.any((self.obstacles_np[:, 0] == self.mario_row) & 
-                (self.obstacles_np[:, 1] == self.mario_col + 1)) or \
-        np.any((self.obstacles_np[:, 0] == self.mario_row - 2) & 
-                (self.obstacles_np[:, 1] == self.mario_col + 1)):
-            return "OBSTACLE"
-
+        # if np.any((self.obstacles_np[:, 0] == self.mario_row) & 
+        #         (self.obstacles_np[:, 1] == self.mario_col + 1)) or \
+        # np.any((self.obstacles_np[:, 0] == self.mario_row - 1) & 
+        #         (self.obstacles_np[:, 1] == self.mario_col + 1)):
+        #     return "OBSTACLE"
         
+        if np.any((self.obstacles_np[:, 0] == self.mario_row ) & 
+                (self.obstacles_np[:, 1] == self.mario_col + 1)): 
+            return "OBSTACLE"
         
         # Only check if mario is within the game board (aka not dead)
         if self.mario_row < 16:
@@ -256,7 +258,7 @@ class MarioExpert:
             action = 4
         
         if self.current_state == "GAP":
-            hold_freq = 10
+            hold_freq = 30
             action = 6
 
         if self.current_state == "ENEMIES":
@@ -293,7 +295,7 @@ class MarioExpert:
                     print("moving right")
                     action = 2
                 # If the goomba is to the left of mario, move left so mario lands on it unless the goomba is too far
-                elif goomba_col -1 < self.mario_col and self.mario_col - goomba_col < 2 :
+                elif goomba_col - 1 < self.mario_col and self.mario_col - goomba_col < 2 :
                     print("moving left")
                     action = 1
                 else:
